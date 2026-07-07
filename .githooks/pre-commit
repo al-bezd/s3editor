@@ -1,0 +1,47 @@
+#!/usr/bin/env bash
+#
+# Guard: не даёт закоммитить секреты (ключи/креды).
+# Установка (один раз): git config core.hooksPath .githooks
+#
+# Обойти в исключительном случае: git commit --no-verify
+set -u
+
+fail=0
+
+# Список staged-файлов (только добавленные/изменённые, не удалённые)
+staged=$(git diff --cached --name-only --diff-filter=ACM)
+
+[ -z "$staged" ] && exit 0
+
+# 1) Запрещённые имена файлов
+name_re='(^|/)(env\.json|\.env($|\..*)|.*secret.*|.*credentials.*|service-account.*\.json|key\.json)$|\.(pem|key|p12|pfx)$'
+while IFS= read -r f; do
+  [ -z "$f" ] && continue
+  if printf '%s\n' "$f" | grep -Eiq "$name_re"; then
+    echo "🚫 Похоже на файл с секретами: $f"
+    fail=1
+  fi
+done <<< "$staged"
+
+# 2) Паттерны секретов в содержимом staged-файлов
+#    Yandex статический ключ (YCAJE...), Yandex secret (YCO...), AWS AKIA,
+#    и присвоение secretKey/accessKey непустой строкой.
+content_re='YCAJE[0-9A-Za-z_-]{10,}|YCO[0-9A-Za-z_-]{20,}|AKIA[0-9A-Z]{16}|(secret|access)[Kk]ey"?\s*[:=]\s*"[A-Za-z0-9/+_-]{12,}"'
+while IFS= read -r f; do
+  [ -z "$f" ] && continue
+  # только текстовые файлы; бинарь пропускаем
+  if git show ":$f" 2>/dev/null | grep -Eq "$content_re"; then
+    echo "🚫 В файле найден похожий на секрет фрагмент: $f"
+    fail=1
+  fi
+done <<< "$staged"
+
+if [ "$fail" -ne 0 ]; then
+  echo ""
+  echo "Коммит остановлен pre-commit guard'ом."
+  echo "Убери секреты из индекса (git restore --staged <file>) или, если это ложное срабатывание,"
+  echo "закоммить с --no-verify."
+  exit 1
+fi
+
+exit 0

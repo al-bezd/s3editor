@@ -46,5 +46,16 @@ app.*.map.json
 
 # FVM Version Cache
 .fvm/
+
 # secrets — не коммитить
 env.json
+*.env
+.env*
+*secret*
+*credentials*
+*.pem
+*.key
+*.p12
+*.pfx
+service-account*.json
+key.json
