@@ -1,4 +1,3 @@
-import 'package:adaptive_dialog/adaptive_dialog.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
@@ -120,41 +119,16 @@ class SettingScreen extends HookConsumerWidget {
                   InputShapeWidget(
                     title: 'bucket'.toCapitalize(),
                     currentValue: settingsState.bucket,
-                    onTap: () async {
-                      final buckets = await ref
-                          .read(s3Provider.notifier)
-                          .getBuckets();
-                      if (context.mounted) {
-                        final bucket = await showConfirmationDialog(
-                          context: context,
-                          title: 'select bucket'.toCapitalize(),
-
-                          actions: buckets
-                              .map(
-                                (x) => AlertDialogAction(key: x, label: x.name),
-                              )
-                              .toList(),
-                        );
-                        if (bucket != null) {
-                          // storage.value.write(
-                          //   key: 'bucket',
-                          //   value: bucket.name,
-                          // );
-                          settingsNotifier.bucket = bucket.name;
-                          await s3Notifier.reconect();
-                          if (context.mounted) {
-                            context.showSnackBar(
-                              'field "bucket" was successfuly save',
-                            );
-                          }
+                    onTap: () {
+                      context.showInputField((value) async {
+                        settingsNotifier.bucket = value;
+                        await s3Notifier.reconect();
+                        if (context.mounted) {
+                          context.showSnackBar(
+                            'field "bucket" was successfuly save',
+                          );
                         }
-                      }
-
-                      // context.showInputField((value) {
-                      //   storage.value.write(key: 'bucket', value: value);
-                      //   settingsNotifier.bucket = value;
-                      //   context.showSnackBar('field "bucket" was successfuly save');
-                      // }, initValue: settingsState.bucket);
+                      }, initValue: settingsState.bucket);
                     },
                     onLongPress: () {
                       //storage.value.delete(key: 'bucket');
