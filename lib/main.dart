@@ -8,7 +8,13 @@ import 'package:s3editor/screens/s3_browser_screen.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  await SoLoud.instance.init();
+  // На web аудиодвижок может быть недоступен (нужен пользовательский жест /
+  // определённые заголовки) — не даём этому уронить всё приложение.
+  try {
+    await SoLoud.instance.init();
+  } catch (e) {
+    debugPrint('SoLoud init failed: $e');
+  }
   runApp(ProviderScope(child: const MyApp()));
 }
 

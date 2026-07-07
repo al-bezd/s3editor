@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'dart:io';
 import 'package:adaptive_dialog/adaptive_dialog.dart';
 import 'package:desktop_drop/desktop_drop.dart';
 import 'package:file_picker/file_picker.dart';
@@ -10,6 +9,7 @@ import 'package:hooks_riverpod/hooks_riverpod.dart';
 import 'package:s3editor/extensions/build_context_ext.dart';
 import 'package:s3editor/extensions/string_ext.dart';
 import 'package:s3editor/models/s3_item.dart';
+import 'package:s3editor/models/upload_file.dart';
 import 'package:s3editor/notifiers/s3_notifier.dart';
 import 'package:s3editor/notifiers/settings_notifier.dart';
 import 'package:s3editor/widgets/keyboard_file_paste_listener.dart';
@@ -105,7 +105,7 @@ class S3BrowserScreen extends HookConsumerWidget {
           } else if (s3State.items.isEmpty) {
             return KeyboardFilePasteListener(
               onFilesPasted: (List<String> filePaths) {
-                s3Notifier.addFiles(filePaths);
+                s3Notifier.uploadPaths(filePaths);
               },
               child: DropTarget(
                 onDragDone: (details) => s3Notifier.onDragDone(details),
@@ -118,7 +118,7 @@ class S3BrowserScreen extends HookConsumerWidget {
           }
           return KeyboardFilePasteListener(
             onFilesPasted: (List<String> filePaths) {
-              s3Notifier.addFiles(filePaths);
+              s3Notifier.uploadPaths(filePaths);
             },
             child: DropTarget(
               onDragDone: (details) => s3Notifier.onDragDone(details),
@@ -367,12 +367,13 @@ class DownloadBtn extends HookConsumerWidget {
       onPressed: () async {
         isLoading.value = true;
         final settingsState = ref.read(settingsProvider);
-        final file = await ref
+        await ref
             .read(s3Provider.notifier)
-            .download(item, saveDir: settingsState.saveDir);
-        if (settingsState.isOpenFolderAfterDownload) {
-          Process.run('explorer', [file.parent.path]);
-        }
+            .download(
+              item,
+              saveDir: settingsState.saveDir,
+              openFolder: settingsState.isOpenFolderAfterDownload,
+            );
         if (context.mounted) context.showSnackBar('file was downloaded');
         //if (context.mounted) showOkAlertDialog(context: context, message: link);
         isLoading.value = false;
@@ -445,16 +446,15 @@ class AddFileBtn extends HookConsumerWidget {
       onPressed: () async {
         final filePickerResult = await FilePicker.pickFiles(
           allowMultiple: true,
+          withData: true, // грузим байты в память — обязательно для web
         );
         if (filePickerResult == null) return;
 
-        await s3Notifier.addFiles(
-          filePickerResult.paths
-              .where(
-                (filePath) => filePath != null && File(filePath).existsSync(),
-              )
-              .map((x) => x!),
-        );
+        final files = filePickerResult.files
+            .where((f) => f.bytes != null)
+            .map((f) => UploadFile(name: f.name, bytes: f.bytes!))
+            .toList();
+        await s3Notifier.uploadFiles(files);
       },
     );
   }

@@ -1,10 +1,7 @@
-import 'dart:io';
 import 'dart:typed_data';
 import 'package:flutter/material.dart';
-import 'package:minio/io.dart';
 import 'package:minio/minio.dart';
 import 'package:minio/models.dart';
-import 'package:s3editor/const.dart';
 
 class S3Storage {
   late final Minio _minio;
@@ -48,29 +45,25 @@ class S3Storage {
     return await minio.listBuckets();
   }
 
-  /// Загрузка файла из локальной директории
-  Future<void> uploadFile(String objectKey, File file) async {
-    await _minio.fPutObject(_bucket, objectKey, file.path);
+  /// Загрузка файла байтами (работает на всех платформах, включая web).
+  Future<void> uploadBytes(String objectKey, Uint8List bytes) async {
+    await _minio.putObject(
+      _bucket,
+      objectKey,
+      Stream.value(bytes),
+      size: bytes.length,
+    );
   }
 
-  /// Скачивание файла в локальную директорию
-  Future<File> downloadFile(
-    String objectKey,
-    String fileName, {
-    String? saveDir,
-  }) async {
-    //final dir = await getApplicationDocumentsDirectory();
-    late Directory dir;
-    if (saveDir == null || saveDir.isEmpty) {
-      dir = await getDownloadsDir();
-    } else {
-      dir = Directory(saveDir);
+  /// Скачивание объекта в память (байты). Сохранение на диск/в браузер —
+  /// ответственность вызывающей стороны (см. platform_io.saveBytes).
+  Future<Uint8List> downloadBytes(String objectKey) async {
+    final stream = await _minio.getObject(_bucket, objectKey);
+    final builder = BytesBuilder(copy: false);
+    await for (final chunk in stream) {
+      builder.add(chunk);
     }
-
-    //final dir = await getDownloadsDir();
-    final filePath = '${dir.path}/$fileName';
-    await _minio.fGetObject(_bucket, objectKey, filePath);
-    return File(filePath);
+    return builder.toBytes();
   }
 
   /// Получить список объектов (опционально с префиксом)

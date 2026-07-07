@@ -1,4 +1,3 @@
-import 'dart:io';
 import 'dart:typed_data';
 import 'package:desktop_drop/desktop_drop.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -10,7 +9,9 @@ import 'package:s3editor/exceptions/is_not_image_exception.dart';
 import 'package:s3editor/exceptions/is_not_text_exception.dart';
 import 'package:s3editor/models/s3_client.dart';
 import 'package:s3editor/models/s3_item.dart';
+import 'package:s3editor/models/upload_file.dart';
 import 'package:s3editor/notifiers/settings_notifier.dart';
+import 'package:s3editor/platform/platform_io.dart' as platform;
 import 'package:s3editor/states/s3_state.dart';
 
 final s3Provider = NotifierProvider<S3Notifier, S3State>(S3Notifier.new);
@@ -184,25 +185,32 @@ class S3Notifier extends Notifier<S3State> {
   }
 
   Future<void> onDragDone(DropDoneDetails details) async {
-    // for (final file in details.files) {
-    //   await s3.uploadFile(
-    //     '${state.currentPreffix}${file.name}',
-    //     File(file.path),
-    //   );
-    // }
-    // await loadItems();
-    await addFiles(details.files.map((x) => x.path));
+    final files = <UploadFile>[];
+    for (final xf in details.files) {
+      files.add(UploadFile(name: xf.name, bytes: await xf.readAsBytes()));
+    }
+    await uploadFiles(files);
   }
 
-  Future<void> addFiles(Iterable<String> filePaths) async {
-    for (final filePath in filePaths) {
-      final file = File(filePath);
-      await s3.uploadFile(
-        '${state.currentPreffix}${file.path.split('\\').last}',
-        File(file.path),
-      );
+  /// Загрузить набор файлов (имя + байты) в текущую папку. Кроссплатформенно.
+  Future<void> uploadFiles(List<UploadFile> files) async {
+    for (final file in files) {
+      await s3.uploadBytes('${state.currentPreffix}${file.name}', file.bytes);
     }
     await loadItems();
+  }
+
+  /// Загрузить файлы по локальным путям (только десктоп — вставка из буфера).
+  /// На web пути к файлам не существует, поэтому вызов сюда не доходит.
+  Future<void> uploadPaths(Iterable<String> filePaths) async {
+    final files = <UploadFile>[];
+    for (final filePath in filePaths) {
+      final name = filePath.split(RegExp(r'[\\/]')).last;
+      files.add(
+        UploadFile(name: name, bytes: await platform.readBytesFromPath(filePath)),
+      );
+    }
+    await uploadFiles(files);
   }
 
   void onDragEntered(DropEventDetails details) {}
@@ -238,8 +246,20 @@ class S3Notifier extends Notifier<S3State> {
     }
   }
 
-  Future<File> download(S3Item item, {String? saveDir}) async {
-    return await s3.downloadFile(item.key, item.name, saveDir: saveDir);
+  /// Скачать объект: получить байты и сохранить средствами платформы
+  /// (файл на диск + открытие папки на десктопе; загрузка браузером на web).
+  Future<void> download(
+    S3Item item, {
+    String? saveDir,
+    bool openFolder = false,
+  }) async {
+    final bytes = await s3.downloadBytes(item.key);
+    await platform.saveBytes(
+      fileName: item.name,
+      bytes: bytes,
+      saveDir: saveDir,
+      openFolder: openFolder,
+    );
   }
 
   Future<List<Bucket>> getBuckets() async {

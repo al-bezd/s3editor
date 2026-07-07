@@ -55,7 +55,8 @@ dependencies:
   highlight: ^0.7.0
   flutter_highlight: ^0.7.0
   json5: ^0.8.2
-  
+  web: ^1.1.0          # Браузерные API (Blob/anchor) для скачивания на web
+
 
 dev_dependencies:
   flutter_test:

@@ -1,16 +1,15 @@
-import 'dart:io';
-
 import 'package:adaptive_dialog/adaptive_dialog.dart';
 import 'package:file_picker/file_picker.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter_hooks/flutter_hooks.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:hooks_riverpod/hooks_riverpod.dart';
-import 'package:s3editor/const.dart';
 import 'package:s3editor/extensions/build_context_ext.dart';
 import 'package:s3editor/extensions/string_ext.dart';
 import 'package:s3editor/notifiers/s3_notifier.dart';
 import 'package:s3editor/notifiers/settings_notifier.dart';
+import 'package:s3editor/platform/platform_io.dart' as platform;
 import 'package:s3editor/widgets/input_shape_widget.dart';
 
 class SettingScreen extends HookConsumerWidget {
@@ -29,12 +28,15 @@ class SettingScreen extends HookConsumerWidget {
       Future(() async {
         isLoading.value = true;
         items.value = await storage.value.readAll();
-        if (settingsState.saveDir.isEmpty) {
-          settingsNotifier.saveDir = (await getDownloadsDir()).path;
-          if (context.mounted) {
-            context.showSnackBar(
-              'the save directory is set by default'.toCapitalize(),
-            );
+        if (!kIsWeb && settingsState.saveDir.isEmpty) {
+          final def = await platform.defaultSaveDir();
+          if (def != null) {
+            settingsNotifier.saveDir = def;
+            if (context.mounted) {
+              context.showSnackBar(
+                'the save directory is set by default'.toCapitalize(),
+              );
+            }
           }
         }
         isLoading.value = false;
@@ -162,74 +164,78 @@ class SettingScreen extends HookConsumerWidget {
                       );
                     },
                   ),
-                  InputShapeWidget(
-                    title: 'save dir'.toCapitalize(),
-                    currentValue: settingsState.saveDir,
-                    suffix: IconButton(
-                      onPressed: () async {
-                        String? selectedDirectory =
-                            await FilePicker.getDirectoryPath();
-                        if (selectedDirectory != null) {
-                          settingsNotifier.saveDir = selectedDirectory;
+                  // Папка сохранения и открытие проводника — только для
+                  // десктопа. В браузере файлы скачивает сам браузер.
+                  if (!kIsWeb)
+                    InputShapeWidget(
+                      title: 'save dir'.toCapitalize(),
+                      currentValue: settingsState.saveDir,
+                      suffix: IconButton(
+                        onPressed: () async {
+                          String? selectedDirectory =
+                              await FilePicker.getDirectoryPath();
+                          if (selectedDirectory != null) {
+                            settingsNotifier.saveDir = selectedDirectory;
+                            if (context.mounted) {
+                              context.showSnackBar(
+                                'field "save dir" was successfuly save',
+                              );
+                            }
+                          }
+                        },
+                        icon: Icon(Icons.folder),
+                        onLongPress: () async {
+                          final def = await platform.defaultSaveDir();
+                          if (def != null) {
+                            settingsNotifier.saveDir = def;
+                          }
                           if (context.mounted) {
                             context.showSnackBar(
-                              'field "save dir" was successfuly save',
+                              'field "save dir" set default path folder',
                             );
                           }
-                        }
-                      },
-                      icon: Icon(Icons.folder),
-                      onLongPress: () async {
-                        settingsNotifier.saveDir =
-                            (await getDownloadsDir()).path;
-                        if (context.mounted) {
-                          context.showSnackBar(
-                            'field "save dir" set default path folder',
-                          );
-                        }
-                      },
-                    ),
-                    onTap: () {
-                      context.showInputField((value) {
-                        if (!Directory(value).existsSync()) {
-                          context.showErrorSnackBar(
-                            'directory $value is not found',
-                          );
-                          return;
-                        }
-                        //storage.value.write(key: 'saveDir', value: value);
-                        settingsNotifier.saveDir = value;
-                        context.showSnackBar(
-                          'field "save dir" was successfuly save',
-                        );
-                      }, initValue: settingsState.saveDir);
-                    },
-                    onLongPress: () {
-                      //storage.value.delete(key: 'saveDir');
-                      settingsNotifier.saveDir = '';
-                      context.showSnackBar(
-                        'field "save dir" was successfuly removed',
-                      );
-                    },
-                  ),
-
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Expanded(
-                        child: Text(
-                          'open the folder with the file after downloading'
-                              .toCapitalize(),
-                        ),
-                      ),
-                      Switch(
-                        value: settingsState.isOpenFolderAfterDownload,
-                        onChanged: (value) {
-                          settingsNotifier.isOpenFolderAfterDownload = value;
                         },
                       ),
-                    ],
-                  ),
+                      onTap: () {
+                        context.showInputField((value) {
+                          if (!platform.directoryExists(value)) {
+                            context.showErrorSnackBar(
+                              'directory $value is not found',
+                            );
+                            return;
+                          }
+                          settingsNotifier.saveDir = value;
+                          context.showSnackBar(
+                            'field "save dir" was successfuly save',
+                          );
+                        }, initValue: settingsState.saveDir);
+                      },
+                      onLongPress: () {
+                        settingsNotifier.saveDir = '';
+                        context.showSnackBar(
+                          'field "save dir" was successfuly removed',
+                        );
+                      },
+                    ),
+
+                  if (!kIsWeb)
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Expanded(
+                          child: Text(
+                            'open the folder with the file after downloading'
+                                .toCapitalize(),
+                          ),
+                        ),
+                        Switch(
+                          value: settingsState.isOpenFolderAfterDownload,
+                          onChanged: (value) {
+                            settingsNotifier.isOpenFolderAfterDownload = value;
+                          },
+                        ),
+                      ],
+                    ),
                   
                      Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
