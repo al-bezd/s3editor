@@ -234,7 +234,7 @@ class SettingScreen extends HookConsumerWidget {
                     endPoint: settingsState.endPoint,
                     accessKey: settingsState.accessKey,
                     secretKey: settingsState.secretKey,
-                    //bucket: settingsState.bucket,
+                    bucket: settingsState.bucket,
                   ),
                 ],
               ),
@@ -250,14 +250,14 @@ class CheckConnection extends HookConsumerWidget {
   final String endPoint;
   final String accessKey;
   final String secretKey;
-  //final String bucket;
+  final String bucket;
 
   const CheckConnection({
     super.key,
     required this.endPoint,
     required this.accessKey,
     required this.secretKey,
-    //required this.bucket,
+    required this.bucket,
   });
 
   @override
@@ -316,7 +316,7 @@ class CheckConnection extends HookConsumerWidget {
                         endPoint: endPoint,
                         accessKey: accessKey,
                         secretKey: secretKey,
-                        //bucket: bucket.isEmpty ? null : bucket,
+                        bucket: bucket,
                       );
 
                       isLoading.value = false;

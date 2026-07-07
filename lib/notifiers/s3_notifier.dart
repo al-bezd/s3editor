@@ -230,7 +230,7 @@ class S3Notifier extends Notifier<S3State> {
     required String endPoint,
     required String accessKey,
     required String secretKey,
-    String? bucket,
+    required String bucket,
   }) async {
     final minio = Minio(
       endPoint: endPoint,
@@ -238,11 +238,14 @@ class S3Notifier extends Notifier<S3State> {
       secretKey: secretKey,
     );
 
-    // 🔹 2. Быстрая проверка: список бакетов + таймаут
-    await minio.listBuckets().timeout(const Duration(seconds: 8));
-    if (bucket != null) {
-      final exists = await minio.bucketExists(bucket);
-      if (!exists) throw Exception('Bakcet "$bucket" не найден');
+    // Проверяем доступ к КОНКРЕТНОМУ бакету (bucket-scoped запрос).
+    // listBuckets() бьёт в корень сервиса (GET /), который не покрывается
+    // CORS бакета, поэтому в браузере он всегда падает по CORS.
+    final exists = await minio
+        .bucketExists(bucket)
+        .timeout(const Duration(seconds: 8));
+    if (!exists) {
+      throw Exception('Бакет "$bucket" не найден или нет доступа');
     }
   }
 
